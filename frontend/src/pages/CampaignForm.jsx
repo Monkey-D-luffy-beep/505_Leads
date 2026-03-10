@@ -46,20 +46,24 @@ export default function CampaignForm() {
   const [saving, setSaving] = useState(false)
   const [expandedSeq, setExpandedSeq] = useState(null)
 
-  const { isLoading } = useQuery({
+  const { data: campaignData, isLoading } = useQuery({
     queryKey: ['campaign', id],
     queryFn: () => getCampaign(id).then((r) => r.data),
     enabled: isEditing,
-    onSuccess: (data) => {
+  })
+
+  // Populate form when campaign data loads (v5 compatible)
+  useEffect(() => {
+    if (campaignData && isEditing) {
       setForm({
         ...DEFAULT_FORM,
-        ...data,
-        target_locations: Array.isArray(data.target_locations) ? data.target_locations.join(', ') : data.target_locations || '',
-        target_industries: Array.isArray(data.target_industries) ? data.target_industries.join(', ') : data.target_industries || '',
-        signal_weights: data.signal_weights || {},
+        ...campaignData,
+        target_locations: Array.isArray(campaignData.target_locations) ? campaignData.target_locations.join(', ') : campaignData.target_locations || '',
+        target_industries: Array.isArray(campaignData.target_industries) ? campaignData.target_industries.join(', ') : campaignData.target_industries || '',
+        signal_weights: campaignData.signal_weights || {},
       })
-    },
-  })
+    }
+  }, [campaignData, isEditing])
 
   const { data: sequences = [] } = useQuery({
     queryKey: ['sequences', id],

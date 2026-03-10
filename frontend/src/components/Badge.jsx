@@ -26,7 +26,15 @@ const variants = {
   negative: 'bg-red-900/50 text-red-300 border border-red-700',
   neutral: 'bg-gray-800 text-gray-300 border border-gray-600',
   'out-of-office': 'bg-amber-900/50 text-amber-300 border border-amber-700',
+  'out_of_office': 'bg-amber-900/50 text-amber-300 border border-amber-700',
   unsubscribe: 'bg-red-900/50 text-red-300 border border-red-700',
+  interested: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700',
+  not_interested: 'bg-red-900/50 text-red-300 border border-red-700',
+
+  // Tiers
+  tier_1: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700',
+  tier_2: 'bg-amber-900/50 text-amber-300 border border-amber-700',
+  tier_3: 'bg-gray-800 text-gray-300 border border-gray-600',
 
   // Send mode
   auto: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700',

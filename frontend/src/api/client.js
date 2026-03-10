@@ -25,13 +25,13 @@ export const startScrapeJob = (data) => client.post('/leads/scrape', data)
 export const getScrapeStatus = (jobId) => client.get(`/leads/scrape/status/${jobId}`)
 
 // ── Signals (per lead) ────────────────────────────────────────────────
-export const getLeadSignals = (leadId) => client.get(`/signals/lead/${leadId}`)
-export const rescoreLead = (leadId) => client.post(`/signals/lead/${leadId}/rescore`)
+export const getLeadSignals = (leadId) => client.get(`/leads/${leadId}/signals`)
+export const rescoreLead = (leadId) => client.post(`/leads/${leadId}/rescore`)
 
 // ── Contacts ──────────────────────────────────────────────────────────
-export const getContacts = (params) => client.get('/contacts', { params })
-export const findEmails = (leadId) => client.post(`/contacts/find-emails/${leadId}`)
-export const addContact = (data) => client.post('/contacts', data)
+export const getContacts = ({ lead_id, ...params }) => client.get(`/leads/${lead_id}/contacts`, { params })
+export const findEmails = (leadId) => client.post(`/leads/${leadId}/find-emails`)
+export const addContact = (data) => { const { lead_id, ...body } = data; return client.post(`/leads/${lead_id}/contacts`, body) }
 
 // ── Campaigns ─────────────────────────────────────────────────────────
 export const getCampaigns = (params) => client.get('/campaigns', { params })

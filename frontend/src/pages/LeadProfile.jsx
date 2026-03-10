@@ -46,7 +46,7 @@ export default function LeadProfile() {
 
   const { data: contacts } = useQuery({
     queryKey: ['contacts', id],
-    queryFn: () => getContacts({ lead_id: id }).then((r) => r.data),
+    queryFn: () => getContacts({ lead_id: id }).then((r) => Array.isArray(r.data) ? r.data : r.data?.data || []),
     enabled: tab === 'Contacts',
   })
 
