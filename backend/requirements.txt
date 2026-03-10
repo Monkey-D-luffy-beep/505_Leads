@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+supabase
+python-dotenv
+celery
+redis
+playwright
+beautifulsoup4
+httpx
+requests
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+wappalyzer
+dnspython
+pytz
+gunicorn

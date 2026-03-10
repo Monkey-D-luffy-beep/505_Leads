@@ -1,0 +1,18 @@
+[Unit]
+Description=Outbound Tool FastAPI
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/outbound-tool/backend
+Environment=PATH=/home/ubuntu/outbound-tool/backend/venv/bin
+EnvironmentFile=/home/ubuntu/outbound-tool/backend/.env
+ExecStart=/home/ubuntu/outbound-tool/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

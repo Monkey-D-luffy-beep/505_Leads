@@ -1,0 +1,18 @@
+[Unit]
+Description=Outbound Tool Celery Beat Scheduler
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/outbound-tool/backend
+Environment=PATH=/home/ubuntu/outbound-tool/backend/venv/bin
+EnvironmentFile=/home/ubuntu/outbound-tool/backend/.env
+ExecStart=/home/ubuntu/outbound-tool/backend/venv/bin/celery -A app.workers.celery_app beat --loglevel=info
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
