@@ -51,24 +51,68 @@ class BulkFindRequest(BaseModel):
 @router.post("/leads/{lead_id}/find-emails")
 async def trigger_find_emails(lead_id: str):
     """
-    Trigger async Celery task to find emails for a lead using
-    all three strategies (Hunter.io → scraped → permutation).
+    Find emails for a lead using the EmailFinder service.
+    Runs inline (no Celery/Redis dependency).
     """
     # Verify lead exists
-    lead = (
+    lead_resp = (
         supabase.table("leads")
-        .select("id")
+        .select("*")
         .eq("id", lead_id)
         .single()
         .execute()
     )
-    if not lead.data:
+    if not lead_resp.data:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    from app.workers.email_tasks import find_emails_for_lead
+    lead = lead_resp.data
+    website = lead.get("website")
+    if not website:
+        return {"status": "skipped", "detail": "no_website", "contacts_found": 0}
 
-    task = find_emails_for_lead.delay(lead_id)
-    return {"job_id": task.id, "status": "started"}
+    from app.services.email_finder import EmailFinder
+
+    finder = EmailFinder()
+    results = await finder.find_email(lead)
+
+    if not results:
+        return {"status": "completed", "contacts_found": 0, "contacts_inserted": 0}
+
+    # Dedup against existing contacts
+    existing = (
+        supabase.table("contacts")
+        .select("email")
+        .eq("lead_id", lead_id)
+        .execute()
+    )
+    existing_emails = {
+        c["email"].lower() for c in (existing.data or []) if c.get("email")
+    }
+
+    inserted = 0
+    for result in results:
+        if result.email.lower() in existing_emails:
+            continue
+        supabase.table("contacts").insert({
+            "lead_id": lead_id,
+            "first_name": result.first_name,
+            "last_name": result.last_name,
+            "full_name": result.full_name or (
+                f"{result.first_name or ''} {result.last_name or ''}".strip() or None
+            ),
+            "designation": result.designation,
+            "email": result.email,
+            "email_confidence": result.email_confidence,
+            "email_status": result.email_status,
+        }).execute()
+        existing_emails.add(result.email.lower())
+        inserted += 1
+
+    return {
+        "status": "completed",
+        "contacts_found": len(results),
+        "contacts_inserted": inserted,
+    }
 
 
 @router.get("/leads/{lead_id}/contacts")
@@ -188,17 +232,55 @@ async def delete_contact(contact_id: str):
 @router.post("/leads/find-emails/bulk")
 async def bulk_find_emails(body: BulkFindRequest):
     """
-    Dispatch email finding tasks for multiple leads at once.
-    Returns the count of dispatched jobs.
+    Find emails for multiple leads sequentially.
     """
     if not body.lead_ids:
         raise HTTPException(status_code=400, detail="lead_ids list is empty")
 
-    from app.workers.email_tasks import find_emails_for_lead
+    from app.services.email_finder import EmailFinder
 
-    dispatched = 0
+    finder = EmailFinder()
+    completed = 0
     for lead_id in body.lead_ids:
-        find_emails_for_lead.delay(lead_id)
-        dispatched += 1
+        try:
+            lead_resp = (
+                supabase.table("leads")
+                .select("*")
+                .eq("id", lead_id)
+                .single()
+                .execute()
+            )
+            lead = lead_resp.data
+            if not lead or not lead.get("website"):
+                continue
+            results = await finder.find_email(lead)
+            if results:
+                existing = (
+                    supabase.table("contacts")
+                    .select("email")
+                    .eq("lead_id", lead_id)
+                    .execute()
+                )
+                existing_emails = {
+                    c["email"].lower() for c in (existing.data or []) if c.get("email")
+                }
+                for result in results:
+                    if result.email.lower() not in existing_emails:
+                        supabase.table("contacts").insert({
+                            "lead_id": lead_id,
+                            "first_name": result.first_name,
+                            "last_name": result.last_name,
+                            "full_name": result.full_name or (
+                                f"{result.first_name or ''} {result.last_name or ''}".strip() or None
+                            ),
+                            "designation": result.designation,
+                            "email": result.email,
+                            "email_confidence": result.email_confidence,
+                            "email_status": result.email_status,
+                        }).execute()
+                        existing_emails.add(result.email.lower())
+            completed += 1
+        except Exception:
+            continue
 
-    return {"dispatched": dispatched, "status": "started"}
+    return {"completed": completed, "total": len(body.lead_ids)}
