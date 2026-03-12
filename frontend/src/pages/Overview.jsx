@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
@@ -9,19 +8,13 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
 } from '@heroicons/react/24/outline'
-import toast from 'react-hot-toast'
-import { getOverviewStats, getEmails, getQueue, startScrapeJob } from '../api/client'
+import { getOverviewStats, getEmails, getQueue } from '../api/client'
 import { StatCard } from '../components/StatCard'
 import { Badge } from '../components/Badge'
-import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Shared'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function Overview() {
-  const [scrapeOpen, setScrapeOpen] = useState(false)
-  const [scrapeForm, setScrapeForm] = useState({ keyword: '', location: '', max_results: 50 })
-  const [scraping, setScraping] = useState(false)
-
   const { data: stats, isLoading } = useQuery({
     queryKey: ['overview-stats'],
     queryFn: () => getOverviewStats().then((r) => r.data),
@@ -37,29 +30,14 @@ export default function Overview() {
     queryFn: () => getQueue({ per_page: 1 }).then((r) => r.data),
   })
 
-  const handleScrape = async () => {
-    if (!scrapeForm.keyword) return toast.error('Enter a keyword')
-    setScraping(true)
-    try {
-      await startScrapeJob(scrapeForm)
-      toast.success('Scrape job started!')
-      setScrapeOpen(false)
-      setScrapeForm({ keyword: '', location: '', max_results: 50 })
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Scrape failed')
-    } finally {
-      setScraping(false)
-    }
-  }
+  const queueCount = queueData?.data?.length || 0
+  const emails = recentEmails?.data || recentEmails || []
 
   if (isLoading) return <Spinner />
 
   const replyRate = stats?.emails_sent
     ? ((stats?.total_replies / stats.emails_sent) * 100).toFixed(1)
     : '0.0'
-
-  const queueCount = queueData?.data?.length || 0
-  const emails = recentEmails?.data || recentEmails || []
 
   return (
     <div className="space-y-8">
@@ -92,9 +70,9 @@ export default function Overview() {
 
       {/* Quick Actions */}
       <div className="flex gap-3">
-        <button onClick={() => setScrapeOpen(true)} className="btn-primary">
-          <MagnifyingGlassIcon className="h-4 w-4" /> New Scrape Job
-        </button>
+        <Link to="/leads" className="btn-primary">
+          <MagnifyingGlassIcon className="h-4 w-4" /> 505 Leads
+        </Link>
         <Link to="/campaigns/new" className="btn-secondary">
           <PlusIcon className="h-4 w-4" /> New Campaign
         </Link>
@@ -128,45 +106,6 @@ export default function Overview() {
           <p className="text-sm text-gray-500">No recent activity yet.</p>
         )}
       </div>
-
-      {/* Scrape Modal */}
-      <Modal open={scrapeOpen} onClose={() => setScrapeOpen(false)} title="New Scrape Job">
-        <div className="space-y-4">
-          <div>
-            <label className="label">Keyword *</label>
-            <input
-              className="input"
-              placeholder="e.g. Web development agency"
-              value={scrapeForm.keyword}
-              onChange={(e) => setScrapeForm({ ...scrapeForm, keyword: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Location</label>
-            <input
-              className="input"
-              placeholder="e.g. New York, USA"
-              value={scrapeForm.location}
-              onChange={(e) => setScrapeForm({ ...scrapeForm, location: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Max Results</label>
-            <input
-              type="number"
-              className="input"
-              value={scrapeForm.max_results}
-              onChange={(e) => setScrapeForm({ ...scrapeForm, max_results: parseInt(e.target.value) || 50 })}
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setScrapeOpen(false)} className="btn-secondary">Cancel</button>
-            <button onClick={handleScrape} disabled={scraping} className="btn-primary">
-              {scraping ? 'Starting...' : 'Start Scraping'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

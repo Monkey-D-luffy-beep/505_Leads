@@ -11,7 +11,6 @@ requests
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
-wappalyzer
 dnspython
 pytz
 gunicorn

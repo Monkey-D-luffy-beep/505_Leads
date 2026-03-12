@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  MagnifyingGlassIcon,
   FunnelIcon,
   EnvelopeIcon,
   MegaphoneIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { getLeads, startScrapeJob, getScrapeStatus, findEmails } from '../api/client'
@@ -43,64 +43,22 @@ export default function LeadDiscovery() {
   const [scrapeForm, setScrapeForm] = useState({ keyword: '', location: '', max_results: 50 })
   const [scraping, setScraping] = useState(false)
   const [jobStatus, setJobStatus] = useState(null)
-  const [scrapeMode, setScrapeMode] = useState(null) // 'single' or 'batch'
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', page, filters],
     queryFn: () => getLeads({ page, per_page: 50, ...filters }).then((r) => r.data),
   })
 
-  const handleScrape = async () => {
+  const handleBatchScrape = async () => {
     if (!scrapeForm.keyword) return toast.error('Enter a keyword')
     if (!scrapeForm.location) return toast.error('Enter a location')
-    setScraping(true)
-    setJobStatus(null)
-    setScrapeMode('single')
 
-    try {
-      const response = await fetch(`${API_BASE}/leads/scrape-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scrapeForm),
-      })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-      await readSSE(response, (parsed) => {
-        setJobStatus(parsed)
-        if (parsed.status === 'completed') {
-          toast.success(`Done! ${parsed.inserted || 0} leads added`)
-          queryClient.invalidateQueries({ queryKey: ['leads'] })
-          setScraping(false)
-        } else if (parsed.status === 'failed' || parsed.status === 'captcha_blocked') {
-          toast.error(parsed.status === 'captcha_blocked' ? 'CAPTCHA detected — try later' : 'Scrape failed')
-          setScraping(false)
-        }
-      })
-      setScraping(false)
-    } catch (e) {
-      toast.error('Scrape failed: ' + e.message)
-      setScraping(false)
-    }
-  }
-
-  const handleBatchScrape = async () => {
     const queries = [
-      { keyword: 'web design agency', location: 'London', max_results: 60 },
-      { keyword: 'digital marketing agency', location: 'London', max_results: 60 },
-      { keyword: 'software development company', location: 'London', max_results: 60 },
-      { keyword: 'SEO agency', location: 'Manchester', max_results: 50 },
-      { keyword: 'web design agency', location: 'Birmingham', max_results: 50 },
-      { keyword: 'marketing agency', location: 'Leeds', max_results: 50 },
-      { keyword: 'web development company', location: 'Bristol', max_results: 50 },
-      { keyword: 'digital agency', location: 'Edinburgh', max_results: 50 },
-      { keyword: 'creative agency', location: 'Glasgow', max_results: 50 },
-      { keyword: 'IT services company', location: 'London', max_results: 50 },
+      { keyword: scrapeForm.keyword, location: scrapeForm.location, max_results: scrapeForm.max_results },
     ]
 
     setScraping(true)
     setJobStatus(null)
-    setScrapeMode('batch')
-
     try {
       const response = await fetch(`${API_BASE}/leads/scrape-batch`, {
         method: 'POST',
@@ -154,7 +112,7 @@ export default function LeadDiscovery() {
       {/* Scrape Panel */}
       <div className="card">
         <h3 className="text-lg font-semibold text-white mb-4">Scrape Google Maps</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="flex flex-col md:flex-row gap-4 items-end">
           <input
             className="input"
             placeholder="Keyword (e.g. Web agency)"
@@ -174,36 +132,14 @@ export default function LeadDiscovery() {
             value={scrapeForm.max_results}
             onChange={(e) => setScrapeForm({ ...scrapeForm, max_results: parseInt(e.target.value) || 50 })}
           />
-          <div className="flex gap-2">
-            <button onClick={handleScrape} disabled={scraping} className="btn-primary justify-center flex-1">
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {scraping && scrapeMode === 'single' ? 'Scraping...' : 'Scrape'}
-            </button>
-            <button onClick={handleBatchScrape} disabled={scraping} className="btn-secondary justify-center flex-1 text-xs" title="Scrape 505+ leads across multiple UK cities & niches">
-              <MegaphoneIcon className="h-4 w-4" />
-              {scraping && scrapeMode === 'batch' ? 'Running...' : '505 Leads'}
-            </button>
-          </div>
+          <button onClick={handleBatchScrape} disabled={scraping} className="btn-primary justify-center">
+            <MegaphoneIcon className="h-4 w-4" />
+            {scraping ? 'Scraping...' : '505 Leads'}
+          </button>
         </div>
 
-        {/* Single scrape progress */}
-        {jobStatus && scraping && scrapeMode === 'single' && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-sm text-gray-400 mb-1">
-              <span>Status: {jobStatus.status} — {jobStatus.inserted || 0} inserted, {jobStatus.skipped_duplicates || 0} skipped</span>
-              <span>{jobStatus.processed || 0} / {jobStatus.total_found || '?'}</span>
-            </div>
-            <div className="h-2 rounded-full bg-gray-800">
-              <div
-                className="h-2 rounded-full bg-indigo-500 transition-all"
-                style={{ width: `${jobStatus.total_found ? (jobStatus.processed / jobStatus.total_found) * 100 : 10}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Batch scrape progress */}
-        {jobStatus && scraping && scrapeMode === 'batch' && (
+        {/* Scrape progress */}
+        {jobStatus && scraping && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between text-sm text-gray-400">
               <span>
@@ -229,10 +165,7 @@ export default function LeadDiscovery() {
         {jobStatus && !scraping && jobStatus.status === 'completed' && (
           <div className="mt-4 rounded-lg border border-emerald-700 bg-emerald-900/20 px-4 py-3">
             <p className="text-sm text-emerald-400">
-              Done! {scrapeMode === 'batch'
-                ? `${jobStatus.total_queries || 0} queries completed — ${jobStatus.total_inserted || 0} new leads, ${jobStatus.total_skipped || 0} duplicates skipped.`
-                : `Found ${jobStatus.total_found || 0} businesses — inserted ${jobStatus.inserted || 0} new leads, skipped ${jobStatus.skipped_duplicates || 0} duplicates.`
-              }
+              Done! {jobStatus.total_queries || 0} queries completed — {jobStatus.total_inserted || 0} new leads, {jobStatus.total_skipped || 0} duplicates skipped.
             </p>
           </div>
         )}
