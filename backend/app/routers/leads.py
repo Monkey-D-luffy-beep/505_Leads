@@ -9,7 +9,12 @@ import logging
 
 from app.database import supabase
 from app.models.lead import LeadCreate, LeadUpdate, LeadResponse
-from app.services.scraper import GoogleMapsScraper, scrape_website_meta
+
+try:
+    from app.services.scraper import GoogleMapsScraper, scrape_website_meta
+    SCRAPER_AVAILABLE = True
+except ImportError:
+    SCRAPER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +64,8 @@ async def trigger_scrape(req: ScrapeRequest):
     Kick off a Google Maps scrape job.
     Tries Celery first; falls back to sync if Redis unavailable.
     """
+    if not SCRAPER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Scraping unavailable in serverless mode. Run locally.")
     job_id = str(uuid.uuid4())
     try:
         from app.workers.scrape_tasks import run_scrape_job
@@ -84,6 +91,9 @@ async def scrape_sync(req: ScrapeRequest):
     Returns Server-Sent Events (SSE) so the frontend can show live progress.
     No Redis or Celery needed.
     """
+    if not SCRAPER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Scraping unavailable in serverless mode. Run locally.")
+
     async def event_stream():
         job_id = str(uuid.uuid4())
         progress = {
@@ -204,6 +214,9 @@ async def scrape_batch(req: BatchScrapeRequest):
     Batch scrape — runs multiple keyword+location queries sequentially.
     Returns SSE progress for each query.
     """
+    if not SCRAPER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Scraping unavailable in serverless mode. Run locally.")
+
     async def event_stream():
         batch_id = str(uuid.uuid4())
         totals = {

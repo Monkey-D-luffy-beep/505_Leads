@@ -23,7 +23,11 @@ from urllib.parse import urlparse
 
 import dns.resolver
 import httpx
-import redis
+
+try:
+    import redis as _redis_mod
+except ImportError:
+    _redis_mod = None
 
 from app.config import settings
 
@@ -31,7 +35,12 @@ logger = logging.getLogger(__name__)
 
 # ── Redis for Hunter quota tracking ─────────────────────────────────────────
 
-_redis = redis.from_url(settings.REDIS_URL, decode_responses=True) if settings.REDIS_URL else None
+_redis = None
+if _redis_mod and settings.REDIS_URL:
+    try:
+        _redis = _redis_mod.from_url(settings.REDIS_URL, decode_responses=True)
+    except Exception:
+        pass
 
 HUNTER_MONTHLY_LIMIT = 25
 HUNTER_BUFFER = 2  # start skipping when usage >= 23

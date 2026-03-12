@@ -18,14 +18,22 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
-import redis
+try:
+    import redis as _redis_mod
+except ImportError:
+    _redis_mod = None
 
 from app.config import settings
 from app.database import supabase
 
 logger = logging.getLogger(__name__)
 
-_redis = redis.from_url(settings.REDIS_URL, decode_responses=True) if settings.REDIS_URL else None
+_redis = None
+if _redis_mod and settings.REDIS_URL:
+    try:
+        _redis = _redis_mod.from_url(settings.REDIS_URL, decode_responses=True)
+    except Exception:
+        pass
 
 
 # ── Data classes ────────────────────────────────────────────────────────────

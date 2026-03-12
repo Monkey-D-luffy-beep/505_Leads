@@ -38,3 +38,4 @@ test-results/
 # Celery
 celerybeat-schedule
 celerybeat.pid
+.vercel

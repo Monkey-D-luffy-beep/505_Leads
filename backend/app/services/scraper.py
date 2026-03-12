@@ -3,6 +3,7 @@ Web scraper service using Playwright and BeautifulSoup.
 - GoogleMapsScraper: finds small businesses by keyword + location via Google Maps
 - scrape_website_meta: extracts structured metadata from a company website
 """
+from __future__ import annotations
 
 import re
 import time
@@ -13,9 +14,14 @@ from typing import Optional, Dict, Any, List
 from urllib.parse import quote_plus
 
 import httpx
-from playwright.async_api import async_playwright, Page, Browser
-from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+
+try:
+    from playwright.async_api import async_playwright, Page, Browser
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
