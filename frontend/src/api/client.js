@@ -1,11 +1,21 @@
 import axios from 'axios'
+import { supabase } from '../lib/supabase'
 
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
 })
 
-// 401 → redirect to login (future auth)
+// Attach Supabase access token to every request
+client.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`
+  }
+  return config
+})
+
+// 401 → redirect to login
 client.interceptors.response.use(
   (res) => res,
   (err) => {

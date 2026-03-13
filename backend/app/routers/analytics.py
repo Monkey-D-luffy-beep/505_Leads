@@ -1,20 +1,23 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 from app.database import supabase
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
 @router.get("/overview")
-async def get_overview():
+async def get_overview(user: dict = Depends(get_current_user)):
     """Get high-level stats across all campaigns."""
-    leads = supabase.table("leads").select("id", count="exact").execute()
-    campaigns = supabase.table("campaigns").select("id", count="exact").execute()
+    uid = user["sub"]
+    leads = supabase.table("leads").select("id", count="exact").eq("user_id", uid).execute()
+    campaigns = supabase.table("campaigns").select("id", count="exact").eq("user_id", uid).execute()
     active_campaigns = (
         supabase.table("campaigns")
         .select("id", count="exact")
+        .eq("user_id", uid)
         .eq("status", "active")
         .execute()
     )

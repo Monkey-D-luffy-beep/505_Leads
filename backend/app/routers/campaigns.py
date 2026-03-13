@@ -12,12 +12,13 @@ Endpoints:
   GET    /campaigns/{id}/leads          → paginated campaign_leads
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 
 from app.database import supabase
 from app.services.campaign_engine import CampaignEngine
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
@@ -60,12 +61,12 @@ class CampaignUpdate(BaseModel):
 
 
 @router.get("/")
-async def list_campaigns(status: Optional[str] = None):
+async def list_campaigns(status: Optional[str] = None, user: dict = Depends(get_current_user)):
     """
     Return all campaigns with summary stats:
       enrolled count, sent count, reply count, status.
     """
-    query = supabase.table("campaigns").select("*").order("created_at", desc=True)
+    query = supabase.table("campaigns").select("*").eq("user_id", user["sub"]).order("created_at", desc=True)
     if status:
         query = query.eq("status", status)
     result = query.execute()
@@ -128,12 +129,13 @@ async def list_campaigns(status: Optional[str] = None):
 
 
 @router.get("/{campaign_id}")
-async def get_campaign(campaign_id: str):
+async def get_campaign(campaign_id: str, user: dict = Depends(get_current_user)):
     """Get a single campaign by ID."""
     result = (
         supabase.table("campaigns")
         .select("*")
         .eq("id", campaign_id)
+        .eq("user_id", user["sub"])
         .single()
         .execute()
     )
@@ -143,16 +145,17 @@ async def get_campaign(campaign_id: str):
 
 
 @router.post("/", status_code=201)
-async def create_campaign(body: CampaignCreate):
+async def create_campaign(body: CampaignCreate, user: dict = Depends(get_current_user)):
     """Create a new campaign (always starts in 'draft' status)."""
     data = body.model_dump()
     data["status"] = "draft"
+    data["user_id"] = user["sub"]
     result = supabase.table("campaigns").insert(data).execute()
     return result.data[0]
 
 
 @router.patch("/{campaign_id}")
-async def update_campaign(campaign_id: str, body: CampaignUpdate):
+async def update_campaign(campaign_id: str, body: CampaignUpdate, user: dict = Depends(get_current_user)):
     """
     Update campaign fields.
     If status changes to 'active' from 'draft':
@@ -207,7 +210,7 @@ async def update_campaign(campaign_id: str, body: CampaignUpdate):
 
 
 @router.delete("/{campaign_id}")
-async def delete_campaign(campaign_id: str):
+async def delete_campaign(campaign_id: str, user: dict = Depends(get_current_user)):
     """Soft delete — set status to 'complete', leave logs intact."""
     result = (
         supabase.table("campaigns")
@@ -221,7 +224,7 @@ async def delete_campaign(campaign_id: str):
 
 
 @router.post("/{campaign_id}/enroll")
-async def enroll_leads(campaign_id: str):
+async def enroll_leads(campaign_id: str, user: dict = Depends(get_current_user)):
     """Manually trigger lead enrollment for a campaign."""
     # Verify campaign exists and is active
     campaign = (
@@ -244,7 +247,7 @@ async def enroll_leads(campaign_id: str):
 
 
 @router.post("/{campaign_id}/pause")
-async def pause_campaign(campaign_id: str):
+async def pause_campaign(campaign_id: str, user: dict = Depends(get_current_user)):
     """Pause a campaign — no emails will be sent."""
     result = (
         supabase.table("campaigns")
@@ -258,7 +261,7 @@ async def pause_campaign(campaign_id: str):
 
 
 @router.post("/{campaign_id}/resume")
-async def resume_campaign(campaign_id: str):
+async def resume_campaign(campaign_id: str, user: dict = Depends(get_current_user)):
     """Resume a paused campaign back to active."""
     current = (
         supabase.table("campaigns")

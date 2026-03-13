@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { getLeads, startScrapeJob, getScrapeStatus, findEmails } from '../api/client'
+import { supabase } from '../lib/supabase'
 import { Badge, ScoreBadge } from '../components/Badge'
 import { Spinner, EmptyState } from '../components/Shared'
 
@@ -60,9 +61,13 @@ export default function LeadDiscovery() {
     setScraping(true)
     setJobStatus(null)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
       const response = await fetch(`${API_BASE}/leads/scrape-batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ queries }),
       })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)

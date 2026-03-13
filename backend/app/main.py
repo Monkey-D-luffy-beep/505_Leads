@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.auth import get_current_user
 from app.routers import leads, campaigns, sequences, emails, analytics, settings as settings_router, signals, contacts, queue, webhooks, replies
 
 app = FastAPI(title="505 Leads API")
@@ -33,6 +34,11 @@ app.include_router(replies.router, prefix="/api/v1")
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/v1/auth/me")
+async def auth_me(user: dict = Depends(get_current_user)):
+    return {"id": user["sub"], "email": user.get("email"), "user_metadata": user.get("user_metadata", {})}
 
 
 if __name__ == "__main__":

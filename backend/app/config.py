@@ -33,6 +33,9 @@ class Settings:
     IMAP_USER: str = _env("IMAP_USER")
     IMAP_PASSWORD: str = _env("IMAP_PASSWORD")
 
+    # Supabase Auth (JWT secret from Supabase Dashboard → Settings → API)
+    SUPABASE_JWT_SECRET: str = _env("SUPABASE_JWT_SECRET")
+
     # App
     SECRET_KEY: str = _env("SECRET_KEY", "change-me")
     ENVIRONMENT: str = _env("ENVIRONMENT", "development")

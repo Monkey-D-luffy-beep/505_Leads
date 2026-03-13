@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ import logging
 
 from app.database import supabase
 from app.models.lead import LeadCreate, LeadUpdate, LeadResponse
+from app.auth import get_current_user
 
 try:
     from app.services.scraper import GoogleMapsScraper, scrape_website_meta
@@ -59,7 +60,7 @@ class ScrapeStatusResponse(BaseModel):
 
 
 @router.post("/scrape", response_model=ScrapeJobResponse)
-async def trigger_scrape(req: ScrapeRequest):
+async def trigger_scrape(req: ScrapeRequest, user: dict = Depends(get_current_user)):
     """
     Kick off a Google Maps scrape job.
     Tries Celery first; falls back to sync if Redis unavailable.
@@ -85,7 +86,7 @@ async def trigger_scrape(req: ScrapeRequest):
 
 
 @router.post("/scrape-sync")
-async def scrape_sync(req: ScrapeRequest):
+async def scrape_sync(req: ScrapeRequest, user: dict = Depends(get_current_user)):
     """
     Synchronous scrape — runs Google Maps scraper in-process.
     Returns Server-Sent Events (SSE) so the frontend can show live progress.
@@ -147,6 +148,7 @@ async def scrape_sync(req: ScrapeRequest):
                     .select("id")
                     .eq("company_name", company_name)
                     .eq("location", req.location)
+                    .eq("user_id", user["sub"])
                     .execute()
                 )
                 if existing.data:
@@ -177,6 +179,7 @@ async def scrape_sync(req: ScrapeRequest):
                     "google_review_count": lead_data.get("review_count"),
                     "status": "new",
                     "raw_data": raw_combined,
+                    "user_id": user["sub"],
                 }
 
                 insert_result = supabase.table("leads").insert(lead_record).execute()
@@ -209,7 +212,7 @@ async def scrape_sync(req: ScrapeRequest):
 
 
 @router.post("/scrape-batch")
-async def scrape_batch(req: BatchScrapeRequest):
+async def scrape_batch(req: BatchScrapeRequest, user: dict = Depends(get_current_user)):
     """
     Batch scrape — runs multiple keyword+location queries sequentially.
     Returns SSE progress for each query.
@@ -275,6 +278,7 @@ async def scrape_batch(req: BatchScrapeRequest):
                         .select("id")
                         .eq("company_name", company_name)
                         .eq("location", query.location)
+                        .eq("user_id", user["sub"])
                         .execute()
                     )
                     if existing.data:
@@ -303,6 +307,7 @@ async def scrape_batch(req: BatchScrapeRequest):
                         "google_review_count": lead_data.get("review_count"),
                         "status": "new",
                         "raw_data": raw_combined,
+                        "user_id": user["sub"],
                     }
 
                     insert_result = supabase.table("leads").insert(lead_record).execute()
@@ -358,15 +363,18 @@ async def list_leads(
     tag: Optional[str] = Query(None, description="Filter by tag (contains)"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
+    user: dict = Depends(get_current_user),
 ):
     """
     Paginated lead listing.
     Default sort: lead_score DESC.
     """
     offset = (page - 1) * limit
+    uid = user["sub"]
     query = (
         supabase.table("leads")
         .select("*", count="exact")
+        .eq("user_id", uid)
         .neq("status", "dead")  # hide soft-deleted
         .order("lead_score", desc=True)
         .range(offset, offset + limit - 1)
@@ -394,7 +402,7 @@ async def list_leads(
 
 
 @router.get("/{lead_id}")
-async def get_lead(lead_id: str):
+async def get_lead(lead_id: str, user: dict = Depends(get_current_user)):
     """
     Get a single lead with related contacts and signals.
     """
@@ -402,6 +410,7 @@ async def get_lead(lead_id: str):
         supabase.table("leads")
         .select("*")
         .eq("id", lead_id)
+        .eq("user_id", user["sub"])
         .single()
         .execute()
     )
@@ -433,24 +442,26 @@ async def get_lead(lead_id: str):
 
 
 @router.post("/", response_model=LeadResponse, status_code=201)
-async def create_lead(lead: LeadCreate):
-    result = supabase.table("leads").insert(lead.model_dump()).execute()
+async def create_lead(lead: LeadCreate, user: dict = Depends(get_current_user)):
+    data = lead.model_dump()
+    data["user_id"] = user["sub"]
+    result = supabase.table("leads").insert(data).execute()
     return result.data[0]
 
 
 @router.patch("/{lead_id}", response_model=LeadResponse)
-async def update_lead(lead_id: str, lead: LeadUpdate):
+async def update_lead(lead_id: str, lead: LeadUpdate, user: dict = Depends(get_current_user)):
     data = lead.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
-    result = supabase.table("leads").update(data).eq("id", lead_id).execute()
+    result = supabase.table("leads").update(data).eq("id", lead_id).eq("user_id", user["sub"]).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     return result.data[0]
 
 
 @router.delete("/{lead_id}", status_code=200)
-async def delete_lead(lead_id: str):
+async def delete_lead(lead_id: str, user: dict = Depends(get_current_user)):
     """
     Soft-delete: sets status to 'dead' rather than removing the row.
     """
@@ -458,6 +469,7 @@ async def delete_lead(lead_id: str):
         supabase.table("leads")
         .update({"status": "dead"})
         .eq("id", lead_id)
+        .eq("user_id", user["sub"])
         .execute()
     )
     if not result.data:

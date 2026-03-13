@@ -44,6 +44,23 @@ PHONE_REGEX = re.compile(
 SOCIAL_DOMAINS = {"facebook.com", "linkedin.com", "instagram.com", "twitter.com", "x.com"}
 BOOKING_KEYWORDS = {"book", "schedule", "appointment", "calendly", "acuity"}
 
+# ── Low-memory Chromium args (for Render free-tier 512 MB) ─────────────────
+_CHROMIUM_ARGS = [
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--single-process",
+    "--no-zygote",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-default-apps",
+    "--disable-sync",
+    "--disable-translate",
+    "--metrics-recording-only",
+    "--no-first-run",
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Google Maps Scraper
@@ -71,10 +88,13 @@ class GoogleMapsScraper:
         leads: List[Dict[str, Any]] = []
 
         async with async_playwright() as pw:
-            self._browser = await pw.chromium.launch(headless=True)
+            self._browser = await pw.chromium.launch(
+                headless=True,
+                args=_CHROMIUM_ARGS,
+            )
             context = await self._browser.new_context(
                 user_agent=random.choice(USER_AGENTS),
-                viewport={"width": 1280, "height": 900},
+                viewport={"width": 1024, "height": 768},
                 locale="en-US",
             )
             page = await context.new_page()
@@ -148,10 +168,13 @@ class GoogleMapsScraper:
         leads: List[Dict[str, Any]] = []
 
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
+            browser = pw.chromium.launch(
+                headless=True,
+                args=_CHROMIUM_ARGS,
+            )
             context = browser.new_context(
                 user_agent=random.choice(USER_AGENTS),
-                viewport={"width": 1280, "height": 900},
+                viewport={"width": 1024, "height": 768},
                 locale="en-US",
             )
             page = context.new_page()
